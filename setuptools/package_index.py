@@ -98,15 +98,12 @@ def egg_info_for_url(url):
 def distros_for_url(url, metadata=None):
     """Yield egg or source distribution objects that might be found at a URL"""
     base, fragment = egg_info_for_url(url)
-    for dist in distros_for_location(url, base, metadata):
-        yield dist
+    yield from distros_for_location(url, base, metadata)
     if fragment:
-        match = EGG_FRAGMENT.match(fragment)
-        if match:
-            for dist in interpret_distro_name(
+        if match := EGG_FRAGMENT.match(fragment):
+            yield from interpret_distro_name(
                 url, match.group(1), metadata, precedence=CHECKOUT_DIST
-            ):
-                yield dist
+            )
 
 
 def distros_for_location(location, basename, metadata=None):
@@ -118,15 +115,20 @@ def distros_for_location(location, basename, metadata=None):
         return [Distribution.from_location(location, basename, metadata)]
     if basename.endswith('.whl') and '-' in basename:
         wheel = Wheel(basename)
-        if not wheel.is_compatible():
-            return []
-        return [Distribution(
-            location=location,
-            project_name=wheel.project_name,
-            version=wheel.version,
-            # Increase priority over eggs.
-            precedence=EGG_DIST + 1,
-        )]
+        return (
+            [
+                Distribution(
+                    location=location,
+                    project_name=wheel.project_name,
+                    version=wheel.version,
+                    # Increase priority over eggs.
+                    precedence=EGG_DIST + 1,
+                )
+            ]
+            if wheel.is_compatible()
+            else []
+        )
+
     if basename.endswith('.exe'):
         win_base, py_ver, platform = parse_bdist_wininst(basename)
         if win_base is not None:
@@ -215,8 +217,7 @@ def find_external_links(url, page):
     for tag in ("<th>Home Page", "<th>Download URL"):
         pos = page.find(tag)
         if pos != -1:
-            match = HREF.search(page, pos)
-            if match:
+            if match := HREF.search(page, pos):
                 yield urllib.parse.urljoin(url, htmldecode(match.group(1)))
 
 
@@ -263,9 +264,7 @@ class HashChecker(ContentChecker):
         if not fragment:
             return ContentChecker()
         match = cls.pattern.search(fragment)
-        if not match:
-            return ContentChecker()
-        return cls(**match.groupdict())
+        return cls(**match.groupdict()) if match else ContentChecker()
 
     def feed(self, block):
         self.hash.update(block)
@@ -303,7 +302,7 @@ class PackageIndex(Environment):
         return super().add(dist)
 
     # FIXME: 'PackageIndex.process_url' is too complex (14)
-    def process_url(self, url, retrieve=False):  # noqa: C901
+    def process_url(self, url, retrieve=False):    # noqa: C901
         """Evaluate a URL as a possible download, and maybe retrieve it"""
         if url in self.scanned_urls and not retrieve:
             return
@@ -333,7 +332,7 @@ class PackageIndex(Environment):
         if f is None:
             return
         if isinstance(f, urllib.error.HTTPError) and f.code == 401:
-            self.info("Authentication error: %s" % f.msg)
+            self.info(f"Authentication error: {f.msg}")
         self.fetched_urls[f.url] = True
         if 'html' not in f.headers.get('content-type', '').lower():
             f.close()  # not html, we can't process it
@@ -367,8 +366,7 @@ class PackageIndex(Environment):
             for item in os.listdir(path):
                 self.process_filename(os.path.join(path, item), True)
 
-        dists = distros_for_filename(fn)
-        if dists:
+        if dists := distros_for_filename(fn):
             self.debug("Found: %s", fn)
             list(map(self.add, dists))
 
@@ -449,7 +447,7 @@ class PackageIndex(Environment):
             base, frag = egg_info_for_url(new_url)
             if base.endswith('.py') and not frag:
                 if ver:
-                    new_url += '#egg=%s-%s' % (pkg, ver)
+                    new_url += f'#egg={pkg}-{ver}'
                 else:
                     self.need_version_info(url)
             self.scan_url(new_url)
@@ -563,8 +561,7 @@ class PackageIndex(Environment):
         raised if a problem occurs during downloading.
         """
         if not isinstance(spec, Requirement):
-            scheme = URL_SCHEME(spec)
-            if scheme:
+            if scheme := URL_SCHEME(spec):
                 # It's a url, download it to tmpdir
                 found = self._download_url(scheme.group(1), spec, tmpdir)
                 base, fragment = egg_info_for_url(spec)
@@ -663,9 +660,7 @@ class PackageIndex(Environment):
         object.
         """
         dist = self.fetch_distribution(requirement, tmpdir, force_scan, source)
-        if dist is not None:
-            return dist.location
-        return None
+        return dist.location if dist is not None else None
 
     def gen_setup(self, filename, fragment, tmpdir):
         match = EGG_FRAGMENT.match(fragment)
@@ -730,15 +725,11 @@ class PackageIndex(Environment):
                 size = max(map(int, sizes))
                 self.reporthook(url, filename, blocknum, bs, size)
             with open(filename, 'wb') as tfp:
-                while True:
-                    block = fp.read(bs)
-                    if block:
-                        checker.feed(block)
-                        tfp.write(block)
-                        blocknum += 1
-                        self.reporthook(url, filename, blocknum, bs, size)
-                    else:
-                        break
+                while block := fp.read(bs):
+                    checker.feed(block)
+                    tfp.write(block)
+                    blocknum += 1
+                    self.reporthook(url, filename, blocknum, bs, size)
                 self.check_hash(checker, filename, tfp)
             return headers
         finally:
@@ -759,15 +750,14 @@ class PackageIndex(Environment):
             if warning:
                 self.warn(warning, msg)
             else:
-                raise DistutilsError('%s %s' % (url, msg)) from v
+                raise DistutilsError(f'{url} {msg}') from v
         except urllib.error.HTTPError as v:
             return v
         except urllib.error.URLError as v:
             if warning:
                 self.warn(warning, v.reason)
             else:
-                raise DistutilsError("Download error for %s: %s"
-                                     % (url, v.reason)) from v
+                raise DistutilsError(f"Download error for {url}: {v.reason}") from v
         except http.client.BadStatusLine as v:
             if warning:
                 self.warn(warning, v.line)
@@ -781,8 +771,7 @@ class PackageIndex(Environment):
             if warning:
                 self.warn(warning, v)
             else:
-                raise DistutilsError("Download error for %s: %s"
-                                     % (url, v)) from v
+                raise DistutilsError(f"Download error for {url}: {v}") from v
 
     def _download_url(self, scheme, url, tmpdir):
         # Determine download filename
@@ -824,19 +813,18 @@ class PackageIndex(Environment):
             return filename
 
     def _download_html(self, url, headers, filename):
-        file = open(filename)
-        for line in file:
-            if line.strip():
-                # Check for a subversion index page
-                if re.search(r'<title>([^- ]+ - )?Revision \d+:', line):
-                    # it's a subversion index page:
-                    file.close()
-                    os.unlink(filename)
-                    return self._download_svn(url, filename)
-                break  # not an index page
-        file.close()
+        with open(filename) as file:
+            for line in file:
+                if line.strip():
+                    # Check for a subversion index page
+                    if re.search(r'<title>([^- ]+ - )?Revision \d+:', line):
+                        # it's a subversion index page:
+                        file.close()
+                        os.unlink(filename)
+                        return self._download_svn(url, filename)
+                    break  # not an index page
         os.unlink(filename)
-        raise DistutilsError("Unexpected HTML page found at " + url)
+        raise DistutilsError(f"Unexpected HTML page found at {url}")
 
     def _download_svn(self, url, filename):
         warnings.warn("SVN download support is deprecated", UserWarning)
@@ -850,14 +838,14 @@ class PackageIndex(Environment):
                 if auth:
                     if ':' in auth:
                         user, pw = auth.split(':', 1)
-                        creds = " --username=%s --password=%s" % (user, pw)
+                        creds = f" --username={user} --password={pw}"
                     else:
-                        creds = " --username=" + auth
+                        creds = f" --username={auth}"
                     netloc = host
                     parts = scheme, netloc, url, p, q, f
                     url = urllib.parse.urlunparse(parts)
         self.info("Doing subversion checkout from %s to %s", url, filename)
-        os.system("svn checkout%s -q %s %s" % (creds, url, filename))
+        os.system(f"svn checkout{creds} -q {url} {filename}")
         return filename
 
     @staticmethod
@@ -883,14 +871,11 @@ class PackageIndex(Environment):
         url, rev = self._vcs_split_rev_from_url(url, pop_prefix=True)
 
         self.info("Doing git clone from %s to %s", url, filename)
-        os.system("git clone --quiet %s %s" % (url, filename))
+        os.system(f"git clone --quiet {url} {filename}")
 
         if rev is not None:
             self.info("Checking out %s", rev)
-            os.system("git -C %s checkout --quiet %s" % (
-                filename,
-                rev,
-            ))
+            os.system(f"git -C {filename} checkout --quiet {rev}")
 
         return filename
 
@@ -899,14 +884,11 @@ class PackageIndex(Environment):
         url, rev = self._vcs_split_rev_from_url(url, pop_prefix=True)
 
         self.info("Doing hg clone from %s to %s", url, filename)
-        os.system("hg clone --quiet %s %s" % (url, filename))
+        os.system(f"hg clone --quiet {url} {filename}")
 
         if rev is not None:
             self.info("Updating to %s", rev)
-            os.system("hg --cwd %s up -C -r %s -q" % (
-                filename,
-                rev,
-            ))
+            os.system(f"hg --cwd {filename} up -C -r {rev} -q")
 
         return filename
 
@@ -1050,14 +1032,13 @@ def open_with_auth(url, opener=urllib.request.urlopen):
         auth = None
 
     if not auth:
-        cred = PyPIConfig().find_credential(url)
-        if cred:
+        if cred := PyPIConfig().find_credential(url):
             auth = str(cred)
             info = cred.username, url
             log.info('Authenticating as %s for %s (from .pypirc)', *info)
 
     if auth:
-        auth = "Basic " + _encode_auth(auth)
+        auth = f"Basic {_encode_auth(auth)}"
         parts = scheme, address, path, params, query, frag
         new_url = urllib.parse.urlunparse(parts)
         request = urllib.request.Request(new_url)

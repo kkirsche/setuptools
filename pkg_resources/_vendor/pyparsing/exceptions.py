@@ -13,7 +13,9 @@ class ExceptionWordUnicode(ppu.Latin1, ppu.LatinA, ppu.LatinB, ppu.Greek, ppu.Cy
 
 
 _extract_alphanums = _collapse_string_to_ranges(ExceptionWordUnicode.alphanums)
-_exception_word_extractor = re.compile("([" + _extract_alphanums + "]{1,16})|.")
+_exception_word_extractor = re.compile(
+    f"([{_extract_alphanums}" + "]{1,16})|."
+)
 
 
 class ParseBaseException(Exception):
@@ -62,14 +64,13 @@ class ParseBaseException(Exception):
             depth = sys.getrecursionlimit()
         ret = []
         if isinstance(exc, ParseBaseException):
-            ret.append(exc.line)
-            ret.append(" " * (exc.column - 1) + "^")
-        ret.append("{}: {}".format(type(exc).__name__, exc))
+            ret.extend((exc.line, " " * (exc.column - 1) + "^"))
+        ret.append(f"{type(exc).__name__}: {exc}")
 
         if depth > 0:
             callers = inspect.getinnerframes(exc.__traceback__, context=depth)
             seen = set()
-            for i, ff in enumerate(callers[-depth:]):
+            for ff in callers[-depth:]:
                 frm = ff[0]
 
                 f_self = frm.f_locals.get("self", None)
@@ -81,22 +82,18 @@ class ParseBaseException(Exception):
                     seen.add(id(f_self))
 
                     self_type = type(f_self)
-                    ret.append(
-                        "{}.{} - {}".format(
-                            self_type.__module__, self_type.__name__, f_self
-                        )
-                    )
+                    ret.append(f"{self_type.__module__}.{self_type.__name__} - {f_self}")
 
                 elif f_self is not None:
                     self_type = type(f_self)
-                    ret.append("{}.{}".format(self_type.__module__, self_type.__name__))
+                    ret.append(f"{self_type.__module__}.{self_type.__name__}")
 
                 else:
                     code = frm.f_code
                     if code.co_name in ("wrapper", "<module>"):
                         continue
 
-                    ret.append("{}".format(code.co_name))
+                    ret.append(f"{code.co_name}")
 
                 depth -= 1
                 if not depth:
@@ -154,9 +151,7 @@ class ParseBaseException(Exception):
                 foundstr = (", found %r" % found).replace(r"\\", "\\")
         else:
             foundstr = ""
-        return "{}{}  (at char {}), (line:{}, col:{})".format(
-            self.msg, foundstr, self.loc, self.lineno, self.column
-        )
+        return f"{self.msg}{foundstr}  (at char {self.loc}), (line:{self.lineno}, col:{self.column})"
 
     def __repr__(self):
         return str(self)
@@ -264,4 +259,4 @@ class RecursiveGrammarException(Exception):
         self.parseElementTrace = parseElementList
 
     def __str__(self) -> str:
-        return "RecursiveGrammarException: {}".format(self.parseElementTrace)
+        return f"RecursiveGrammarException: {self.parseElementTrace}"

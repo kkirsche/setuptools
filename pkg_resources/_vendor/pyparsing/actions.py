@@ -134,16 +134,13 @@ def with_attribute(*args, **attr_dict):
         1 4 0 1 0
         1,3 2,3 1,1
     """
-    if args:
-        attrs = args[:]
-    else:
-        attrs = attr_dict.items()
-    attrs = [(k, v) for k, v in attrs]
+    attrs = args[:] if args else attr_dict.items()
+    attrs = list(attrs)
 
     def pa(s, l, tokens):
         for attrName, attrValue in attrs:
             if attrName not in tokens:
-                raise ParseException(s, l, "no matching attribute " + attrName)
+                raise ParseException(s, l, f"no matching attribute {attrName}")
             if attrValue != with_attribute.ANY_VALUE and tokens[attrName] != attrValue:
                 raise ParseException(
                     s,
@@ -195,7 +192,7 @@ def with_class(classname, namespace=""):
         1 4 0 1 0
         1,3 2,3 1,1
     """
-    classattr = "{}:class".format(namespace) if namespace else "class"
+    classattr = f"{namespace}:class" if namespace else "class"
     return with_attribute(**{classattr: classname})
 
 

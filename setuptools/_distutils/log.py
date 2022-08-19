@@ -18,15 +18,12 @@ class Log:
 
     def _log(self, level, msg, args):
         if level not in (DEBUG, INFO, WARN, ERROR, FATAL):
-            raise ValueError('%s wrong log level' % str(level))
+            raise ValueError(f'{str(level)} wrong log level')
 
         if level >= self.threshold:
             if args:
                 msg = msg % args
-            if level in (WARN, ERROR, FATAL):
-                stream = sys.stderr
-            else:
-                stream = sys.stdout
+            stream = sys.stderr if level in (WARN, ERROR, FATAL) else sys.stdout
             try:
                 stream.write('%s\n' % msg)
             except UnicodeEncodeError:

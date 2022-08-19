@@ -5,7 +5,7 @@ from weakref import ref as wkref
 from typing import Tuple, Any
 
 str_type: Tuple[type, ...] = (str, bytes)
-_generator_type = type((_ for _ in ()))
+_generator_type = type(iter(()))
 
 
 class _ParseResultsWithOffset:
@@ -127,9 +127,9 @@ class ParseResults:
 
             if not isinstance(contained, list):
                 raise TypeError(
-                    "{} may only be constructed with a list,"
-                    " not {}".format(cls.__name__, type(contained).__name__)
+                    f"{cls.__name__} may only be constructed with a list, not {type(contained).__name__}"
                 )
+
 
             return list.__new__(cls)
 
@@ -151,7 +151,7 @@ class ParseResults:
             )
         else:
             self._toklist = [toklist]
-        self._tokdict = dict()
+        self._tokdict = {}
         return self
 
     # Performance tuning: we construct a *lot* of these, so keep this
@@ -191,23 +191,24 @@ class ParseResults:
     def __getitem__(self, i):
         if isinstance(i, (int, slice)):
             return self._toklist[i]
+        if i in self._all_names:
+            return ParseResults([v[0] for v in self._tokdict[i]])
+
         else:
-            if i not in self._all_names:
-                return self._tokdict[i][-1][0]
-            else:
-                return ParseResults([v[0] for v in self._tokdict[i]])
+            return self._tokdict[i][-1][0]
 
     def __setitem__(self, k, v, isinstance=isinstance):
         if isinstance(v, _ParseResultsWithOffset):
-            self._tokdict[k] = self._tokdict.get(k, list()) + [v]
+            self._tokdict[k] = self._tokdict.get(k, []) + [v]
             sub = v[0]
         elif isinstance(k, (int, slice)):
             self._toklist[k] = v
             sub = v
         else:
-            self._tokdict[k] = self._tokdict.get(k, list()) + [
+            self._tokdict[k] = self._tokdict.get(k, []) + [
                 _ParseResultsWithOffset(v, 0)
             ]
+
             sub = v
         if isinstance(sub, ParseResults):
             sub._parent = wkref(self)
@@ -314,14 +315,12 @@ class ParseResults:
                 raise TypeError(
                     "pop() got an unexpected keyword argument {!r}".format(k)
                 )
-        if isinstance(args[0], int) or len(args) == 1 or args[0] in self:
-            index = args[0]
-            ret = self[index]
-            del self[index]
-            return ret
-        else:
-            defaultvalue = args[1]
-            return defaultvalue
+        if not isinstance(args[0], int) and len(args) != 1 and args[0] not in self:
+            return args[1]
+        index = args[0]
+        ret = self[index]
+        del self[index]
+        return ret
 
     def get(self, key, default_value=None):
         """
@@ -341,10 +340,7 @@ class ParseResults:
             print(result.get("hour", "not specified")) # -> 'not specified'
             print(result.get("hour")) # -> None
         """
-        if key in self:
-            return self[key]
-        else:
-            return default_value
+        return self[key] if key in self else default_value
 
     def insert(self, index, ins_string):
         """
@@ -448,12 +444,7 @@ class ParseResults:
         return self
 
     def __radd__(self, other) -> "ParseResults":
-        if isinstance(other, int) and other == 0:
-            # useful for merging many ParseResults using sum() builtin
-            return self.copy()
-        else:
-            # this may raise a TypeError - so be it
-            return other + self
+        return self.copy() if isinstance(other, int) and other == 0 else other + self
 
     def __repr__(self) -> str:
         return "{}({!r}, {})".format(type(self).__name__, self._toklist, self.as_dict())
@@ -528,7 +519,7 @@ class ParseResults:
             else:
                 return obj
 
-        return dict((k, to_item(v)) for k, v in self.items())
+        return {k: to_item(v) for k, v in self.items()}
 
     def copy(self) -> "ParseResults":
         """
@@ -613,17 +604,15 @@ class ParseResults:
             - month: '12'
             - year: '1999'
         """
-        out = []
-        NL = "\n"
-        out.append(indent + str(self.as_list()) if include_list else "")
-
+        out = [indent + str(self.as_list()) if include_list else ""]
         if full:
             if self.haskeys():
                 items = sorted((str(k), v) for k, v in self.items())
+                NL = "\n"
                 for k, v in items:
                     if out:
                         out.append(NL)
-                    out.append("{}{}- {}: ".format(indent, ("  " * _depth), k))
+                    out.append(f'{indent}{"  " * _depth}- {k}: ')
                     if isinstance(v, ParseResults):
                         if v:
                             out.append(
@@ -714,10 +703,7 @@ class ParseResults:
     def __setstate__(self, state):
         self._toklist, (self._tokdict, par, inAccumNames, self._name) = state
         self._all_names = set(inAccumNames)
-        if par is not None:
-            self._parent = wkref(par)
-        else:
-            self._parent = None
+        self._parent = wkref(par) if par is not None else None
 
     def __getnewargs__(self):
         return self._toklist, self._name

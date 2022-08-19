@@ -43,8 +43,9 @@ def delimited_list(
     dlName = "{expr} [{delim} {expr}]...{end}".format(
         expr=str(expr.copy().streamline()),
         delim=str(delim),
-        end=" [{}]".format(str(delim)) if allow_trailing_delim else "",
+        end=f" [{str(delim)}]" if allow_trailing_delim else "",
     )
+
 
     if not combine:
         delim = Suppress(delim)
@@ -125,7 +126,7 @@ def counted_array(
         intExpr = intExpr.copy()
     intExpr.set_name("arrayLen")
     intExpr.add_parse_action(count_field_parse_action, call_during_try=True)
-    return (intExpr + array_expr).set_name("(len) " + str(expr) + "...")
+    return (intExpr + array_expr).set_name(f"(len) {str(expr)}...")
 
 
 def match_previous_literal(expr: ParserElement) -> ParserElement:
@@ -157,7 +158,7 @@ def match_previous_literal(expr: ParserElement) -> ParserElement:
             rep << Empty()
 
     expr.add_parse_action(copy_token_to_repeater, callDuringTry=True)
-    rep.set_name("(prev) " + str(expr))
+    rep.set_name(f"(prev) {str(expr)}")
     return rep
 
 
@@ -193,7 +194,7 @@ def match_previous_expr(expr: ParserElement) -> ParserElement:
         rep.set_parse_action(must_match_these_tokens, callDuringTry=True)
 
     expr.add_parse_action(copy_token_to_repeater, callDuringTry=True)
-    rep.set_name("(prev) " + str(expr))
+    rep.set_name(f"(prev) {str(expr)}")
     return rep
 
 
@@ -293,15 +294,13 @@ def one_of(
         try:
             if all(len(sym) == 1 for sym in symbols):
                 # symbols are just single characters, create range regex pattern
-                patt = "[{}]".format(
-                    "".join(_escape_regex_range_chars(sym) for sym in symbols)
-                )
+                patt = f'[{"".join(_escape_regex_range_chars(sym) for sym in symbols)}]'
             else:
                 patt = "|".join(re.escape(sym) for sym in symbols)
 
             # wrap with \b word break markers if defining as keywords
             if asKeyword:
-                patt = r"\b(?:{})\b".format(patt)
+                patt = f"\b(?:{patt})\b"
 
             ret = Regex(patt, flags=re_flags).set_name(" | ".join(symbols))
 
@@ -538,44 +537,49 @@ def nested_expr(
     if opener == closer:
         raise ValueError("opening and closing strings cannot be the same")
     if content is None:
-        if isinstance(opener, str_type) and isinstance(closer, str_type):
-            if len(opener) == 1 and len(closer) == 1:
-                if ignoreExpr is not None:
-                    content = Combine(
-                        OneOrMore(
-                            ~ignoreExpr
-                            + CharsNotIn(
-                                opener + closer + ParserElement.DEFAULT_WHITE_CHARS,
-                                exact=1,
-                            )
-                        )
-                    ).set_parse_action(lambda t: t[0].strip())
-                else:
-                    content = empty.copy() + CharsNotIn(
-                        opener + closer + ParserElement.DEFAULT_WHITE_CHARS
-                    ).set_parse_action(lambda t: t[0].strip())
-            else:
-                if ignoreExpr is not None:
-                    content = Combine(
-                        OneOrMore(
-                            ~ignoreExpr
-                            + ~Literal(opener)
-                            + ~Literal(closer)
-                            + CharsNotIn(ParserElement.DEFAULT_WHITE_CHARS, exact=1)
-                        )
-                    ).set_parse_action(lambda t: t[0].strip())
-                else:
-                    content = Combine(
-                        OneOrMore(
-                            ~Literal(opener)
-                            + ~Literal(closer)
-                            + CharsNotIn(ParserElement.DEFAULT_WHITE_CHARS, exact=1)
-                        )
-                    ).set_parse_action(lambda t: t[0].strip())
-        else:
+        if not isinstance(opener, str_type) or not isinstance(
+            closer, str_type
+        ):
             raise ValueError(
                 "opening and closing arguments must be strings if no content expression is given"
             )
+        if len(opener) == 1 and len(closer) == 1:
+            content = (
+                Combine(
+                    OneOrMore(
+                        ~ignoreExpr
+                        + CharsNotIn(
+                            opener
+                            + closer
+                            + ParserElement.DEFAULT_WHITE_CHARS,
+                            exact=1,
+                        )
+                    )
+                ).set_parse_action(lambda t: t[0].strip())
+                if ignoreExpr is not None
+                else empty.copy()
+                + CharsNotIn(
+                    opener + closer + ParserElement.DEFAULT_WHITE_CHARS
+                ).set_parse_action(lambda t: t[0].strip())
+            )
+
+        elif ignoreExpr is None:
+            content = Combine(
+                OneOrMore(
+                    ~Literal(opener)
+                    + ~Literal(closer)
+                    + CharsNotIn(ParserElement.DEFAULT_WHITE_CHARS, exact=1)
+                )
+            ).set_parse_action(lambda t: t[0].strip())
+        else:
+            content = Combine(
+                OneOrMore(
+                    ~ignoreExpr
+                    + ~Literal(opener)
+                    + ~Literal(closer)
+                    + CharsNotIn(ParserElement.DEFAULT_WHITE_CHARS, exact=1)
+                )
+            ).set_parse_action(lambda t: t[0].strip())
     ret = Forward()
     if ignoreExpr is not None:
         ret <<= Group(
@@ -583,7 +587,7 @@ def nested_expr(
         )
     else:
         ret <<= Group(Suppress(opener) + ZeroOrMore(ret | content) + Suppress(closer))
-    ret.set_name("nested %s%s expression" % (opener, closer))
+    ret.set_name(f"nested {opener}{closer} expression")
     return ret
 
 
@@ -595,7 +599,7 @@ def _makeTags(tagStr, xml, suppress_LT=Suppress("<"), suppress_GT=Suppress(">"))
     else:
         resname = tagStr.name
 
-    tagAttrName = Word(alphas, alphanums + "_-:")
+    tagAttrName = Word(alphas, f"{alphanums}_-:")
     if xml:
         tagAttrValue = dbl_quoted_string.copy().set_parse_action(remove_quotes)
         openTag = (
@@ -629,7 +633,7 @@ def _makeTags(tagStr, xml, suppress_LT=Suppress("<"), suppress_GT=Suppress(">"))
         )
     closeTag = Combine(Literal("</") + tagStr + ">", adjacent=False)
 
-    openTag.set_name("<%s>" % resname)
+    openTag.set_name(f"<{resname}>")
     # add start<tagname> results name in parse action now that ungrouped names are not reported at two levels
     openTag.add_parse_action(
         lambda t: t.__setitem__(
@@ -638,7 +642,8 @@ def _makeTags(tagStr, xml, suppress_LT=Suppress("<"), suppress_GT=Suppress(">"))
     )
     closeTag = closeTag(
         "end" + "".join(resname.replace(":", " ").title().split())
-    ).set_name("</%s>" % resname)
+    ).set_name(f"</{resname}>")
+
     openTag.tag = resname
     closeTag.tag = resname
     openTag.tag_body = SkipTo(closeTag())
@@ -686,8 +691,9 @@ def make_xml_tags(
 any_open_tag: ParserElement
 any_close_tag: ParserElement
 any_open_tag, any_close_tag = make_html_tags(
-    Word(alphas, alphanums + "_:").set_name("any tag")
+    Word(alphas, f"{alphanums}_:").set_name("any tag")
 )
+
 
 _htmlEntityMap = {k.rstrip(";"): v for k, v in html.entities.html5.items()}
 common_html_entity = Regex("&(?P<entity>" + "|".join(_htmlEntityMap) + ");").set_name(
@@ -803,7 +809,7 @@ def infix_notation(
         -2--11
         [[['-', 2], '-', ['-', 11]]]
     """
-    # captive version of FollowedBy that does not do parse actions or capture results names
+# captive version of FollowedBy that does not do parse actions or capture results names
     class _FB(FollowedBy):
         def parseImpl(self, instring, loc, doActions=True):
             self.expr.try_parse(instring, loc)
@@ -818,12 +824,13 @@ def infix_notation(
         rpar = Suppress(rpar)
 
     # if lpar and rpar are not suppressed, wrap in group
-    if not (isinstance(rpar, Suppress) and isinstance(rpar, Suppress)):
-        lastExpr = base_expr | Group(lpar + ret + rpar)
-    else:
-        lastExpr = base_expr | (lpar + ret + rpar)
+    lastExpr = (
+        base_expr | (lpar + ret + rpar)
+        if (isinstance(rpar, Suppress) and isinstance(rpar, Suppress))
+        else base_expr | Group(lpar + ret + rpar)
+    )
 
-    for i, operDef in enumerate(op_list):
+    for operDef in op_list:
         opExpr, arity, rightLeftAssoc, pa = (operDef + (None,))[:4]
         if isinstance(opExpr, str_type):
             opExpr = ParserElement._literalStringClass(opExpr)
@@ -833,9 +840,9 @@ def infix_notation(
                     "if numterms=3, opExpr must be a tuple or list of two expressions"
                 )
             opExpr1, opExpr2 = opExpr
-            term_name = "{}{} term".format(opExpr1, opExpr2)
+            term_name = f"{opExpr1}{opExpr2} term"
         else:
-            term_name = "{} term".format(opExpr)
+            term_name = f"{opExpr} term"
 
         if not 1 <= arity <= 3:
             raise ValueError("operator must be unary (1), binary (2), or ternary (3)")
@@ -848,12 +855,13 @@ def infix_notation(
             if arity == 1:
                 matchExpr = _FB(lastExpr + opExpr) + Group(lastExpr + opExpr[1, ...])
             elif arity == 2:
-                if opExpr is not None:
-                    matchExpr = _FB(lastExpr + opExpr + lastExpr) + Group(
-                        lastExpr + (opExpr + lastExpr)[1, ...]
-                    )
-                else:
-                    matchExpr = _FB(lastExpr + lastExpr) + Group(lastExpr[2, ...])
+                matchExpr = (
+                    _FB(lastExpr + opExpr + lastExpr)
+                    + Group(lastExpr + (opExpr + lastExpr)[1, ...])
+                    if opExpr is not None
+                    else _FB(lastExpr + lastExpr) + Group(lastExpr[2, ...])
+                )
+
             elif arity == 3:
                 matchExpr = _FB(
                     lastExpr + opExpr1 + lastExpr + opExpr2 + lastExpr

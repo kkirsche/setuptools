@@ -37,8 +37,7 @@ collect_ignore = [
 
 
 if sys.version_info < (3, 6):
-    collect_ignore.append('docs/conf.py')  # uses f-strings
-    collect_ignore.append('pavement.py')
+    collect_ignore.extend(('docs/conf.py', 'pavement.py'))
 
 
 @pytest.fixture(autouse=True)

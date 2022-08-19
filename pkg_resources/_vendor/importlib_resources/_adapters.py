@@ -35,7 +35,7 @@ def _io_wrapper(file, mode='r', *args, **kwargs):
     elif mode == 'rb':
         return file
     raise ValueError(
-        "Invalid mode value '{}', only 'r' and 'rb' are supported".format(mode)
+        f"Invalid mode value '{mode}', only 'r' and 'rb' are supported"
     )
 
 
@@ -56,11 +56,13 @@ class CompatibilityFiles:
             self._reader = reader
 
         def iterdir(self):
-            if not self._reader:
-                return iter(())
-            return iter(
-                CompatibilityFiles.ChildPath(self._reader, path)
-                for path in self._reader.contents()
+            return (
+                iter(
+                    CompatibilityFiles.ChildPath(self._reader, path)
+                    for path in self._reader.contents()
+                )
+                if self._reader
+                else iter(())
             )
 
         def is_file(self):
@@ -69,9 +71,11 @@ class CompatibilityFiles:
         is_dir = is_file
 
         def joinpath(self, other):
-            if not self._reader:
-                return CompatibilityFiles.OrphanPath(other)
-            return CompatibilityFiles.ChildPath(self._reader, other)
+            return (
+                CompatibilityFiles.ChildPath(self._reader, other)
+                if self._reader
+                else CompatibilityFiles.OrphanPath(other)
+            )
 
         @property
         def name(self):
@@ -118,7 +122,7 @@ class CompatibilityFiles:
         """
 
         def __init__(self, *path_parts):
-            if len(path_parts) < 1:
+            if not path_parts:
                 raise ValueError('Need at least one path part to construct a path')
             self._path = path_parts
 

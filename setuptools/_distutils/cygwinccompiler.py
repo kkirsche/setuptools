@@ -57,7 +57,7 @@ def get_msvcr():
             # VS2015 / MSVC 14.0
             return ['ucrt', 'vcruntime140']
         else:
-            raise ValueError("Unknown MS Compiler version %s " % msc_ver)
+            raise ValueError(f"Unknown MS Compiler version {msc_ver} ")
 
 
 _runtime_library_dirs_msg = (
@@ -84,9 +84,7 @@ class CygwinCCompiler(UnixCCompiler):
         super().__init__(verbose, dry_run, force)
 
         status, details = check_config_h()
-        self.debug_print(
-            "Python's GCC status: {} (details: {})".format(status, details)
-        )
+        self.debug_print(f"Python's GCC status: {status} (details: {details})")
         if status is not CONFIG_H_OK:
             self.warn(
                 "Python's pyconfig.h doesn't seem to support your compiler. "
@@ -101,12 +99,13 @@ class CygwinCCompiler(UnixCCompiler):
         shared_option = "-shared"
 
         self.set_executables(
-            compiler='%s -mcygwin -O -Wall' % self.cc,
-            compiler_so='%s -mcygwin -mdll -O -Wall' % self.cc,
-            compiler_cxx='%s -mcygwin -O -Wall' % self.cxx,
-            linker_exe='%s -mcygwin' % self.cc,
-            linker_so=('{} -mcygwin {}'.format(self.linker_dll, shared_option)),
+            compiler=f'{self.cc} -mcygwin -O -Wall',
+            compiler_so=f'{self.cc} -mcygwin -mdll -O -Wall',
+            compiler_cxx=f'{self.cxx} -mcygwin -O -Wall',
+            linker_exe=f'{self.cc} -mcygwin',
+            linker_so=f'{self.linker_dll} -mcygwin {shared_option}',
         )
+
 
         # Include the appropriate MSVC runtime library if Python was built
         # with MSVC 7.0 or later.
@@ -129,7 +128,7 @@ class CygwinCCompiler(UnixCCompiler):
 
     def _compile(self, obj, src, ext, cc_args, extra_postargs, pp_opts):
         """Compiles the source by spawning GCC and windres if needed."""
-        if ext == '.rc' or ext == '.res':
+        if ext in ['.rc', '.res']:
             # gcc needs '.res' and '.rc' compiled to object files !!!
             try:
                 self.spawn(["windres", "-i", src, "-o", obj])
@@ -191,13 +190,12 @@ class CygwinCCompiler(UnixCCompiler):
             )
 
             # generate the filenames for these files
-            def_file = os.path.join(temp_dir, dll_name + ".def")
+            def_file = os.path.join(temp_dir, f"{dll_name}.def")
 
             # Generate .def file
-            contents = ["LIBRARY %s" % os.path.basename(output_filename), "EXPORTS"]
-            for sym in export_symbols:
-                contents.append(sym)
-            self.execute(write_file, (def_file, contents), "writing %s" % def_file)
+            contents = [f"LIBRARY {os.path.basename(output_filename)}", "EXPORTS"]
+            contents.extend(iter(export_symbols))
+            self.execute(write_file, (def_file, contents), f"writing {def_file}")
 
             # next add options for def-file
 
@@ -251,9 +249,7 @@ class CygwinCCompiler(UnixCCompiler):
             # use normcase to make sure '.rc' is really '.rc' and not '.RC'
             base, ext = os.path.splitext(os.path.normcase(src_name))
             if ext not in (self.src_extensions + ['.rc', '.res']):
-                raise UnknownFileError(
-                    "unknown file type '{}' (from '{}')".format(ext, src_name)
-                )
+                raise UnknownFileError(f"unknown file type '{ext}' (from '{src_name}')")
             if strip_dir:
                 base = os.path.basename(base)
             if ext in ('.res', '.rc'):
@@ -282,12 +278,13 @@ class Mingw32CCompiler(CygwinCCompiler):
             raise CCompilerError('Cygwin gcc cannot be used with --compiler=mingw32')
 
         self.set_executables(
-            compiler='%s -O -Wall' % self.cc,
-            compiler_so='%s -mdll -O -Wall' % self.cc,
-            compiler_cxx='%s -O -Wall' % self.cxx,
-            linker_exe='%s' % self.cc,
-            linker_so='{} {}'.format(self.linker_dll, shared_option),
+            compiler=f'{self.cc} -O -Wall',
+            compiler_so=f'{self.cc} -mdll -O -Wall',
+            compiler_cxx=f'{self.cxx} -O -Wall',
+            linker_exe=f'{self.cc}',
+            linker_so=f'{self.linker_dll} {shared_option}',
         )
+
 
         # Maybe we should also append -mthreads, but then the finished
         # dlls need another dll (mingwm10.dll see Mingw32 docs)
@@ -357,7 +354,7 @@ def check_config_h():
         finally:
             config_h.close()
     except OSError as exc:
-        return (CONFIG_H_UNCERTAIN, "couldn't read '{}': {}".format(fn, exc.strerror))
+        return CONFIG_H_UNCERTAIN, f"couldn't read '{fn}': {exc.strerror}"
 
 
 def is_cygwincc(cc):

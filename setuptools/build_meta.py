@@ -125,11 +125,11 @@ def _file_with_extension(directory, extension):
 
 
 def _open_setup_script(setup_script):
-    if not os.path.exists(setup_script):
-        # Supply a default setup.py
-        return io.StringIO(u"from setuptools import setup; setup()")
-
-    return getattr(tokenize, 'open', open)(setup_script)
+    return (
+        getattr(tokenize, 'open', open)(setup_script)
+        if os.path.exists(setup_script)
+        else io.StringIO(u"from setuptools import setup; setup()")
+    )
 
 
 @contextlib.contextmanager
@@ -259,10 +259,10 @@ class _ConfigSettingsTranslator:
         ['--mode', 'strict']
         """
         cfg = config_settings or {}
-        mode = cfg.get("editable-mode") or cfg.get("editable_mode")
-        if not mode:
+        if mode := cfg.get("editable-mode") or cfg.get("editable_mode"):
+            yield from ["--mode", str(mode)]
+        else:
             return
-        yield from ["--mode", str(mode)]
 
     def _arbitrary_args(self, config_settings: _ConfigSettings) -> Iterator[str]:
         """
@@ -357,7 +357,7 @@ class _BuildMetaBackend(_ConfigSettingsTranslator):
         for parent, dirs, _ in os.walk(metadata_directory):
             candidates = [f for f in dirs if f.endswith(suffix)]
 
-            if len(candidates) != 0 or len(dirs) != 1:
+            if candidates or len(dirs) != 1:
                 assert len(candidates) == 1, f"Multiple {suffix} directories found"
                 return Path(parent, candidates[0])
 

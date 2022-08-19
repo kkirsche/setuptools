@@ -127,10 +127,10 @@ class Extension:
         self.optional = optional
 
         # If there are unknown keyword options, warn about them
-        if len(kw) > 0:
+        if kw:
             options = [repr(option) for option in kw]
             options = ', '.join(sorted(options))
-            msg = "Unknown Extension options: %s" % options
+            msg = f"Unknown Extension options: {options}"
             warnings.warn(msg)
 
     def __repr__(self):
@@ -142,7 +142,7 @@ class Extension:
         )
 
 
-def read_setup_file(filename):  # noqa: C901
+def read_setup_file(filename):    # noqa: C901
     """Reads a Setup file and returns Extension instances."""
     from distutils.sysconfig import parse_makefile, expand_makefile_vars, _variable_rx
 
@@ -196,7 +196,7 @@ def read_setup_file(filename):  # noqa: C901
                     continue
 
                 suffix = os.path.splitext(word)[1]
-                switch = word[0:2]
+                switch = word[:2]
                 value = word[2:]
 
                 if suffix in (".c", ".cc", ".cpp", ".cxx", ".c++", ".m", ".mm"):
@@ -211,7 +211,7 @@ def read_setup_file(filename):  # noqa: C901
                     if equals == -1:  # bare "-DFOO" -- no value
                         ext.define_macros.append((value, None))
                     else:  # "-DFOO=blah"
-                        ext.define_macros.append((value[0:equals], value[equals + 2 :]))
+                        ext.define_macros.append((value[:equals], value[equals + 2 :]))
                 elif switch == "-U":
                     ext.undef_macros.append(value)
                 elif switch == "-C":  # only here 'cause makesetup has it!

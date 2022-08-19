@@ -69,17 +69,13 @@ class build(Command):
     def finalize_options(self):  # noqa: C901
         if self.plat_name is None:
             self.plat_name = get_platform()
-        else:
-            # plat-name only supported for windows (other platforms are
-            # supported via ./configure flags, if at all).  Avoid misleading
-            # other platforms.
-            if os.name != 'nt':
-                raise DistutilsOptionError(
-                    "--plat-name only supported on Windows (try "
-                    "using './configure --help' on your platform)"
-                )
+        elif os.name != 'nt':
+            raise DistutilsOptionError(
+                "--plat-name only supported on Windows (try "
+                "using './configure --help' on your platform)"
+            )
 
-        plat_specifier = ".{}-{}".format(self.plat_name, sys.implementation.cache_tag)
+        plat_specifier = f".{self.plat_name}-{sys.implementation.cache_tag}"
 
         # Make it so Python 2.x and Python 2.x with --with-pydebug don't
         # share the same build directories. Doing so confuses the build
@@ -93,7 +89,7 @@ class build(Command):
         if self.build_purelib is None:
             self.build_purelib = os.path.join(self.build_base, 'lib')
         if self.build_platlib is None:
-            self.build_platlib = os.path.join(self.build_base, 'lib' + plat_specifier)
+            self.build_platlib = os.path.join(self.build_base, f'lib{plat_specifier}')
 
         # 'build_lib' is the actual directory that we will use for this
         # particular module distribution -- if user didn't supply it, pick
@@ -107,7 +103,7 @@ class build(Command):
         # 'build_temp' -- temporary directory for compiler turds,
         # "build/temp.<plat>"
         if self.build_temp is None:
-            self.build_temp = os.path.join(self.build_base, 'temp' + plat_specifier)
+            self.build_temp = os.path.join(self.build_base, f'temp{plat_specifier}')
         if self.build_scripts is None:
             self.build_scripts = os.path.join(
                 self.build_base, 'scripts-%d.%d' % sys.version_info[:2]

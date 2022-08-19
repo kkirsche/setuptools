@@ -82,7 +82,7 @@ class AnnotatedItem(railroad.Group):
     """
 
     def __init__(self, label: str, item):
-        super().__init__(item=item, label="[{}]".format(label) if label else label)
+        super().__init__(item=item, label=f"[{label}]" if label else label)
 
 
 class EditablePartial(Generic[T]):
