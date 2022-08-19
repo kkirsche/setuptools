@@ -34,9 +34,7 @@ def get_resource_reader(package):
     # TypeError.  That seems terrible.
     spec = package.__spec__
     reader = getattr(spec.loader, 'get_resource_reader', None)  # type: ignore
-    if reader is None:
-        return None
-    return reader(spec.name)  # type: ignore
+    return None if reader is None else reader(spec.name)
 
 
 def resolve(cand):
@@ -80,10 +78,8 @@ def _tempfile(reader, suffix=''):
         del reader
         yield pathlib.Path(raw_path)
     finally:
-        try:
+        with contextlib.suppress(FileNotFoundError):
             os.remove(raw_path)
-        except FileNotFoundError:
-            pass
 
 
 @functools.singledispatch

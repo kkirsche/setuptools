@@ -70,8 +70,7 @@ class Wheel:
 
     def is_compatible(self):
         '''Is the wheel is compatible with the current platform?'''
-        supported_tags = set(
-            (t.interpreter, t.abi, t.platform) for t in sys_tags())
+        supported_tags = {(t.interpreter, t.abi, t.platform) for t in sys_tags()}
         return next((True for t in self.tags() if t in supported_tags), False)
 
     def egg_name(self):
@@ -96,9 +95,9 @@ class Wheel:
             self._install_as_egg(destination_eggdir, zf)
 
     def _install_as_egg(self, destination_eggdir, zf):
-        dist_basename = '%s-%s' % (self.project_name, self.version)
+        dist_basename = f'{self.project_name}-{self.version}'
         dist_info = self.get_dist_info(zf)
-        dist_data = '%s.data' % dist_basename
+        dist_data = f'{dist_basename}.data'
         egg_info = os.path.join(destination_eggdir, 'EGG-INFO')
 
         self._convert_metadata(zf, destination_eggdir, dist_info, egg_info)
@@ -119,8 +118,7 @@ class Wheel:
             parse_version('1.0') <= wheel_version < parse_version('2.0dev0')
         )
         if not wheel_v1:
-            raise ValueError(
-                'unsupported wheel format version: %s' % wheel_version)
+            raise ValueError(f'unsupported wheel format version: {wheel_version}')
         # Extract to target directory.
         _unpack_zipfile_obj(zf, destination_eggdir)
         # Convert metadata.
@@ -136,6 +134,7 @@ class Wheel:
         def raw_req(req):
             req.marker = None
             return str(req)
+
         install_requires = list(map(raw_req, dist.requires()))
         extras_require = {
             extra: [

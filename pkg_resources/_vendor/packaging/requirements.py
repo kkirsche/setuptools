@@ -111,16 +111,14 @@ class Requirement:
             if parsed_url.scheme == "file":
                 if urllib.parse.urlunparse(parsed_url) != req.url:
                     raise InvalidRequirement("Invalid URL given")
-            elif not (parsed_url.scheme and parsed_url.netloc) or (
-                not parsed_url.scheme and not parsed_url.netloc
-            ):
+            elif not ((parsed_url.scheme and parsed_url.netloc)):
                 raise InvalidRequirement(f"Invalid URL: {req.url}")
             self.url: TOptional[str] = req.url
         else:
             self.url = None
         self.extras: Set[str] = set(req.extras.asList() if req.extras else [])
         self.specifier: SpecifierSet = SpecifierSet(req.specifier)
-        self.marker: TOptional[Marker] = req.marker if req.marker else None
+        self.marker: TOptional[Marker] = req.marker or None
 
     def __str__(self) -> str:
         parts: List[str] = [self.name]

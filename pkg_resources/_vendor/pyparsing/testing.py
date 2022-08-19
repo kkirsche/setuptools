@@ -267,14 +267,12 @@ class pyparsing_test:
         if mark_control is not None:
             if mark_control == "unicode":
                 tbl = str.maketrans(
-                    {c: u for c, u in zip(range(0, 33), range(0x2400, 0x2433))}
-                    | {127: 0x2421}
+                    (dict(zip(range(33), range(0x2400, 0x2433))) | {127: 0x2421})
                 )
+
                 eol_mark = ""
             else:
-                tbl = str.maketrans(
-                    {c: mark_control for c in list(range(0, 32)) + [127]}
-                )
+                tbl = str.maketrans({c: mark_control for c in list(range(32)) + [127]})
             s = s.translate(tbl)
         if mark_spaces is not None and mark_spaces != " ":
             if mark_spaces == "unicode":
@@ -292,7 +290,7 @@ class pyparsing_test:
         if mark_control != "unicode":
             s_lines = s.splitlines()[start_line - 1 : end_line]
         else:
-            s_lines = [line + "␊" for line in s.split("␊")[start_line - 1 : end_line]]
+            s_lines = [f"{line}␊" for line in s.split("␊")[start_line - 1 : end_line]]
         if not s_lines:
             return ""
 
@@ -303,22 +301,21 @@ class pyparsing_test:
             header0 = (
                 lead
                 + "".join(
-                    "{}{}".format(" " * 99, (i + 1) % 100)
+                    f'{" " * 99}{(i + 1) % 100}'
                     for i in range(max(max_line_len // 100, 1))
                 )
-                + "\n"
-            )
+            ) + "\n"
+
         else:
             header0 = ""
         header1 = (
             header0
             + lead
             + "".join(
-                "         {}".format((i + 1) % 10)
-                for i in range(-(-max_line_len // 10))
+                f"         {(i + 1) % 10}" for i in range(-(-max_line_len // 10))
             )
-            + "\n"
-        )
+        ) + "\n"
+
         header2 = lead + "1234567890" * (-(-max_line_len // 10)) + "\n"
         return (
             header1

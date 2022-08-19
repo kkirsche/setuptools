@@ -20,7 +20,7 @@ def _fixup_find_links(find_links):
     return find_links
 
 
-def fetch_build_egg(dist, req):  # noqa: C901  # is too complex (16)  # FIXME
+def fetch_build_egg(dist, req):    # noqa: C901  # is too complex (16)  # FIXME
     """Fetch an egg needed for building.
 
     Use pip/wheel to fetch/build a wheel."""
@@ -44,12 +44,10 @@ def fetch_build_egg(dist, req):  # noqa: C901  # is too complex (16)  # FIXME
         raise DistutilsError('the `allow-hosts` option is not supported '
                              'when using pip to install requirements.')
     quiet = 'PIP_QUIET' not in os.environ and 'PIP_VERBOSE' not in os.environ
-    if 'PIP_INDEX_URL' in os.environ:
+    if 'PIP_INDEX_URL' in os.environ or 'index_url' not in opts:
         index_url = None
-    elif 'index_url' in opts:
-        index_url = opts['index_url'][1]
     else:
-        index_url = None
+        index_url = opts['index_url'][1]
     find_links = (
         _fixup_find_links(opts['find_links'][1])[:] if 'find_links' in opts
         else []

@@ -67,45 +67,51 @@ class _BaseVersion:
     # in the six comparisons hereunder
     # unless you find a way to avoid adding overhead function calls.
     def __lt__(self, other: "_BaseVersion") -> bool:
-        if not isinstance(other, _BaseVersion):
-            return NotImplemented
-
-        return self._key < other._key
+        return (
+            self._key < other._key
+            if isinstance(other, _BaseVersion)
+            else NotImplemented
+        )
 
     def __le__(self, other: "_BaseVersion") -> bool:
-        if not isinstance(other, _BaseVersion):
-            return NotImplemented
-
-        return self._key <= other._key
+        return (
+            self._key <= other._key
+            if isinstance(other, _BaseVersion)
+            else NotImplemented
+        )
 
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, _BaseVersion):
-            return NotImplemented
-
-        return self._key == other._key
+        return (
+            self._key == other._key
+            if isinstance(other, _BaseVersion)
+            else NotImplemented
+        )
 
     def __ge__(self, other: "_BaseVersion") -> bool:
-        if not isinstance(other, _BaseVersion):
-            return NotImplemented
-
-        return self._key >= other._key
+        return (
+            self._key >= other._key
+            if isinstance(other, _BaseVersion)
+            else NotImplemented
+        )
 
     def __gt__(self, other: "_BaseVersion") -> bool:
-        if not isinstance(other, _BaseVersion):
-            return NotImplemented
-
-        return self._key > other._key
+        return (
+            self._key > other._key
+            if isinstance(other, _BaseVersion)
+            else NotImplemented
+        )
 
     def __ne__(self, other: object) -> bool:
-        if not isinstance(other, _BaseVersion):
-            return NotImplemented
-
-        return self._key != other._key
+        return (
+            self._key != other._key
+            if isinstance(other, _BaseVersion)
+            else NotImplemented
+        )
 
 
 class LegacyVersion(_BaseVersion):
     def __init__(self, version: str) -> None:
-        self._version = str(version)
+        self._version = version
         self._key = _legacy_cmpkey(self._version)
 
         warnings.warn(
@@ -187,7 +193,7 @@ def _parse_version_parts(s: str) -> Iterator[str]:
             # pad for numeric comparison
             yield part.zfill(8)
         else:
-            yield "*" + part
+            yield f"*{part}"
 
     # ensure that alpha/beta/candidate are before final
     yield "*final"
@@ -320,18 +326,15 @@ class Version(_BaseVersion):
 
     @property
     def epoch(self) -> int:
-        _epoch: int = self._version.epoch
-        return _epoch
+        return self._version.epoch
 
     @property
     def release(self) -> Tuple[int, ...]:
-        _release: Tuple[int, ...] = self._version.release
-        return _release
+        return self._version.release
 
     @property
     def pre(self) -> Optional[Tuple[str, int]]:
-        _pre: Optional[Tuple[str, int]] = self._version.pre
-        return _pre
+        return self._version.pre
 
     @property
     def post(self) -> Optional[int]:
@@ -410,20 +413,13 @@ def _parse_letter_version(
             letter = "a"
         elif letter == "beta":
             letter = "b"
-        elif letter in ["c", "pre", "preview"]:
+        elif letter in {"c", "pre", "preview"}:
             letter = "rc"
-        elif letter in ["rev", "r"]:
+        elif letter in {"rev", "r"}:
             letter = "post"
 
         return letter, int(number)
-    if not letter and number:
-        # We assume if we are given a number, but we are not given a letter
-        # then this is using the implicit post release syntax (e.g. 1.0-1)
-        letter = "post"
-
-        return letter, int(number)
-
-    return None
+    return ("post", int(number)) if number else None
 
 
 _local_version_separators = re.compile(r"[\._-]")
@@ -435,9 +431,10 @@ def _parse_local_version(local: str) -> Optional[LocalType]:
     """
     if local is not None:
         return tuple(
-            part.lower() if not part.isdigit() else int(part)
+            int(part) if part.isdigit() else part.lower()
             for part in _local_version_separators.split(local)
         )
+
     return None
 
 
@@ -473,19 +470,9 @@ def _cmpkey(
         _pre = pre
 
     # Versions without a post segment should sort before those with one.
-    if post is None:
-        _post: PrePostDevType = NegativeInfinity
-
-    else:
-        _post = post
-
+    _post = NegativeInfinity if post is None else post
     # Versions without a development segment should sort after those with one.
-    if dev is None:
-        _dev: PrePostDevType = Infinity
-
-    else:
-        _dev = dev
-
+    _dev = Infinity if dev is None else dev
     if local is None:
         # Versions without a local segment should sort before those with one.
         _local: LocalType = NegativeInfinity

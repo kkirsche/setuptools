@@ -121,7 +121,7 @@ Common commands: (see '--help-commands' for more)
 
     # -- Creation/initialization methods -------------------------------
 
-    def __init__(self, attrs=None):  # noqa: C901
+    def __init__(self, attrs=None):    # noqa: C901
         """Construct a new Distribution instance: initialize all the
         attributes of a Distribution, and then use 'attrs' (a dictionary
         mapping attribute names to values) to assign some of those
@@ -146,7 +146,7 @@ Common commands: (see '--help-commands' for more)
         # object in a sneaky and underhanded (but efficient!) way.
         self.metadata = DistributionMetadata()
         for basename in self.metadata._METHOD_BASENAMES:
-            method_name = "get_" + basename
+            method_name = f"get_{basename}"
             setattr(self, method_name, getattr(self.metadata, method_name))
 
         # 'cmdclass' maps command names to class objects, so we
@@ -251,14 +251,14 @@ Common commands: (see '--help-commands' for more)
             # Now work on the rest of the attributes.  Any attribute that's
             # not already defined is invalid!
             for (key, val) in attrs.items():
-                if hasattr(self.metadata, "set_" + key):
-                    getattr(self.metadata, "set_" + key)(val)
+                if hasattr(self.metadata, f"set_{key}"):
+                    getattr(self.metadata, f"set_{key}")(val)
                 elif hasattr(self.metadata, key):
                     setattr(self.metadata, key, val)
                 elif hasattr(self, key):
                     setattr(self, key, val)
                 else:
-                    msg = "Unknown distribution option: %s" % repr(key)
+                    msg = f"Unknown distribution option: {repr(key)}"
                     warnings.warn(msg)
 
         # no-user-cfg is handled before other command line args
@@ -298,10 +298,10 @@ Common commands: (see '--help-commands' for more)
 
         if header is not None:
             self.announce(indent + header)
-            indent = indent + "  "
+            indent = f"{indent}  "
 
         if not commands:
-            self.announce(indent + "no commands known yet")
+            self.announce(f"{indent}no commands known yet")
             return
 
         for cmd_name in commands:
@@ -312,7 +312,7 @@ Common commands: (see '--help-commands' for more)
                 self.announce(indent + "option dict for '%s' command:" % cmd_name)
                 out = pformat(opt_dict)
                 for line in out.split('\n'):
-                    self.announce(indent + "  " + line)
+                    self.announce(f"{indent}  {line}")
 
     # -- Config file finding/parsing methods ---------------------------
 
@@ -343,11 +343,7 @@ Common commands: (see '--help-commands' for more)
             files.append(sys_file)
 
         # What to call the per-user config file
-        if os.name == 'posix':
-            user_filename = ".pydistutils.cfg"
-        else:
-            user_filename = "pydistutils.cfg"
-
+        user_filename = ".pydistutils.cfg" if os.name == 'posix' else "pydistutils.cfg"
         # And look for the user config file
         if self.want_user_cfg:
             user_file = os.path.join(os.path.expanduser('~'), user_filename)
@@ -360,7 +356,7 @@ Common commands: (see '--help-commands' for more)
             files.append(local_file)
 
         if DEBUG:
-            self.announce("using config files: %s" % ', '.join(files))
+            self.announce(f"using config files: {', '.join(files)}")
 
         return files
 
@@ -398,7 +394,7 @@ Common commands: (see '--help-commands' for more)
         parser = ConfigParser()
         for filename in filenames:
             if DEBUG:
-                self.announce("  reading %s" % filename)
+                self.announce(f"  reading {filename}")
             parser.read(filename)
             for section in parser.sections():
                 options = parser.options(section)
@@ -488,8 +484,9 @@ Common commands: (see '--help-commands' for more)
         # each command listed on the command line.
         if self.help:
             self._show_help(
-                parser, display_options=len(self.commands) == 0, commands=self.commands
+                parser, display_options=not self.commands, commands=self.commands
             )
+
             return
 
         # Oops, no commands found -- an end-user error
@@ -513,7 +510,7 @@ Common commands: (see '--help-commands' for more)
             ),
         ]
 
-    def _parse_command_opts(self, parser, args):  # noqa: C901
+    def _parse_command_opts(self, parser, args):    # noqa: C901
         """Parse the command-line options for a single command.
         'parser' must be a FancyGetopt instance; 'args' must be the list
         of arguments, starting with the current command (whose options
@@ -542,9 +539,7 @@ Common commands: (see '--help-commands' for more)
         # Require that the command class be derived from Command -- want
         # to be sure that the basic "command" interface is implemented.
         if not issubclass(cmd_class, Command):
-            raise DistutilsClassError(
-                "command class %s must subclass Command" % cmd_class
-            )
+            raise DistutilsClassError(f"command class {cmd_class} must subclass Command")
 
         # Also make sure that the command object provides a list of its
         # known options.
@@ -696,14 +691,11 @@ Common commands: (see '--help-commands' for more)
         # display that metadata in the order in which the user supplied the
         # metadata options.
         any_display_options = 0
-        is_display_option = {}
-        for option in self.display_options:
-            is_display_option[option[0]] = 1
-
+        is_display_option = {option[0]: 1 for option in self.display_options}
         for (opt, val) in option_order:
             if val and is_display_option.get(opt):
                 opt = translate_longopt(opt)
-                value = getattr(self.metadata, "get_" + opt)()
+                value = getattr(self.metadata, f"get_{opt}")()
                 if opt in ['keywords', 'platforms']:
                     print(','.join(value))
                 elif opt in ('classifiers', 'provides', 'requires', 'obsoletes'):
@@ -718,7 +710,7 @@ Common commands: (see '--help-commands' for more)
         """Print a subset of the list of all commands -- used by
         'print_commands()'.
         """
-        print(header + ":")
+        print(f"{header}:")
 
         for cmd in commands:
             klass = self.cmdclass.get(cmd)
@@ -742,15 +734,8 @@ Common commands: (see '--help-commands' for more)
         import distutils.command
 
         std_commands = distutils.command.__all__
-        is_std = {}
-        for cmd in std_commands:
-            is_std[cmd] = 1
-
-        extra_commands = []
-        for cmd in self.cmdclass.keys():
-            if not is_std.get(cmd):
-                extra_commands.append(cmd)
-
+        is_std = {cmd: 1 for cmd in std_commands}
+        extra_commands = [cmd for cmd in self.cmdclass.keys() if not is_std.get(cmd)]
         max_length = 0
         for cmd in std_commands + extra_commands:
             if len(cmd) > max_length:
@@ -773,15 +758,8 @@ Common commands: (see '--help-commands' for more)
         import distutils.command
 
         std_commands = distutils.command.__all__
-        is_std = {}
-        for cmd in std_commands:
-            is_std[cmd] = 1
-
-        extra_commands = []
-        for cmd in self.cmdclass.keys():
-            if not is_std.get(cmd):
-                extra_commands.append(cmd)
-
+        is_std = {cmd: 1 for cmd in std_commands}
+        extra_commands = [cmd for cmd in self.cmdclass.keys() if not is_std.get(cmd)]
         rv = []
         for cmd in std_commands + extra_commands:
             klass = self.cmdclass.get(cmd)
@@ -820,12 +798,11 @@ Common commands: (see '--help-commands' for more)
         Raises DistutilsModuleError if the expected module could not be
         found, or if that module does not define the expected class.
         """
-        klass = self.cmdclass.get(command)
-        if klass:
+        if klass := self.cmdclass.get(command):
             return klass
 
         for pkgname in self.get_command_packages():
-            module_name = "{}.{}".format(pkgname, command)
+            module_name = f"{pkgname}.{command}"
             klass_name = command
 
             try:
@@ -865,18 +842,12 @@ Common commands: (see '--help-commands' for more)
             cmd_obj = self.command_obj[command] = klass(self)
             self.have_run[command] = 0
 
-            # Set any options that were supplied in config files
-            # or on the command line.  (NB. support for error
-            # reporting is lame here: any errors aren't reported
-            # until 'finalize_options()' is called, which means
-            # we won't report the source of the error.)
-            options = self.command_options.get(command)
-            if options:
+            if options := self.command_options.get(command):
                 self._set_command_options(cmd_obj, options)
 
         return cmd_obj
 
-    def _set_command_options(self, command_obj, option_dict=None):  # noqa: C901
+    def _set_command_options(self, command_obj, option_dict=None):    # noqa: C901
         """Set the options for 'command_obj' from 'option_dict'.  Basically
         this means copying elements of a dictionary ('option_dict') to
         attributes of an instance ('command').
@@ -893,7 +864,7 @@ Common commands: (see '--help-commands' for more)
             self.announce("  setting options for '%s' command:" % command_name)
         for (option, (source, value)) in option_dict.items():
             if DEBUG:
-                self.announce("    {} = {} (from {})".format(option, value, source))
+                self.announce(f"    {option} = {value} (from {source})")
             try:
                 bool_opts = [translate_longopt(o) for o in command_obj.boolean_options]
             except AttributeError:
@@ -1093,9 +1064,7 @@ class DistributionMetadata:
 
         def _read_list(name):
             values = msg.get_all(name, None)
-            if values == []:
-                return None
-            return values
+            return None if values == [] else values
 
         metadata_version = msg['metadata-version']
         self.name = _read_field('name')
@@ -1182,7 +1151,7 @@ class DistributionMetadata:
     def _write_list(self, file, name, values):
         values = values or []
         for value in values:
-            file.write('{}: {}\n'.format(name, value))
+            file.write(f'{name}: {value}\n')
 
     # -- Metadata query methods ----------------------------------------
 
@@ -1193,7 +1162,7 @@ class DistributionMetadata:
         return self.version or "0.0.0"
 
     def get_fullname(self):
-        return "{}-{}".format(self.get_name(), self.get_version())
+        return f"{self.get_name()}-{self.get_version()}"
 
     def get_author(self):
         return self.author
@@ -1285,7 +1254,4 @@ def fix_help_options(options):
     """Convert a 4-tuple 'help_options' list as found in various command
     classes to the 3-tuple form required by FancyGetopt.
     """
-    new_options = []
-    for help_tuple in options:
-        new_options.append(help_tuple[0:3])
-    return new_options
+    return [help_tuple[:3] for help_tuple in options]

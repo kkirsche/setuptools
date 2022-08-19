@@ -20,13 +20,9 @@ class __config_flags:
     def _set(cls, dname, value):
         if dname in cls._fixed_names:
             warnings.warn(
-                "{}.{} {} is {} and cannot be overridden".format(
-                    cls.__name__,
-                    dname,
-                    cls._type_desc,
-                    str(getattr(cls, dname)).upper(),
-                )
+                f"{cls.__name__}.{dname} {cls._type_desc} is {str(getattr(cls, dname)).upper()} and cannot be overridden"
             )
+
             return
         if dname in cls._all_names:
             setattr(cls, dname, value)

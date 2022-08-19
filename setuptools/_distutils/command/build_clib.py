@@ -151,13 +151,11 @@ class build_clib(Command):
     def get_library_names(self):
         # Assume the library list is valid -- 'check_library_list()' is
         # called from 'finalize_options()', so it should be!
-        if not self.libraries:
-            return None
-
-        lib_names = []
-        for (lib_name, build_info) in self.libraries:
-            lib_names.append(lib_name)
-        return lib_names
+        return (
+            [lib_name for lib_name, build_info in self.libraries]
+            if self.libraries
+            else None
+        )
 
     def get_source_files(self):
         self.check_library_list(self.libraries)

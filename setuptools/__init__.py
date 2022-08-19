@@ -187,10 +187,7 @@ class Command(_Command):
         elif isinstance(val, str):
             setattr(self, option, re.split(r',\s*|\s+', val))
         else:
-            if isinstance(val, list):
-                ok = all(isinstance(v, str) for v in val)
-            else:
-                ok = False
+            ok = all(isinstance(v, str) for v in val) if isinstance(val, list) else False
             if not ok:
                 raise DistutilsOptionError(
                     "'%s' must be a list of strings (got %r)" % (option, val)

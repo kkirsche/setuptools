@@ -69,14 +69,14 @@ def find_module(module, paths=None):
 
 
 def get_frozen_object(module, paths=None):
-    spec = find_spec(module, paths)
-    if not spec:
+    if spec := find_spec(module, paths):
+        return spec.loader.get_code(module)
+    else:
         raise ImportError("Can't find %s" % module)
-    return spec.loader.get_code(module)
 
 
 def get_module(module, paths, info):
-    spec = find_spec(module, paths)
-    if not spec:
+    if spec := find_spec(module, paths):
+        return module_from_spec(spec)
+    else:
         raise ImportError("Can't find %s" % module)
-    return module_from_spec(spec)

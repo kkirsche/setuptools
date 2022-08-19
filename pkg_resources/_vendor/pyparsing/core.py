@@ -194,9 +194,14 @@ def _should_enable_warnings(
 ) -> bool:
     enable = bool(warn_env_var)
     for warn_opt in cmd_line_warn_options:
-        w_action, w_message, w_category, w_module, w_line = (warn_opt + "::::").split(
-            ":"
-        )[:5]
+        (
+            w_action,
+            w_message,
+            w_category,
+            w_module,
+            w_line,
+        ) = f"{warn_opt}::::".split(":")[:5]
+
         if not w_action.lower().startswith("i") and (
             not (w_message or w_category or w_module) or w_module == "pyparsing"
         ):
@@ -252,7 +257,7 @@ alphas = string.ascii_uppercase + string.ascii_lowercase
 identchars = pyparsing_unicode.Latin1.identchars
 identbodychars = pyparsing_unicode.Latin1.identbodychars
 nums = "0123456789"
-hexnums = nums + "ABCDEFabcdef"
+hexnums = f"{nums}ABCDEFabcdef"
 alphanums = alphas + nums
 printables = "".join([c for c in string.printable if c not in string.whitespace])
 
@@ -292,22 +297,20 @@ def _trim_arity(func, max_limit=3):
                 found_arity = True
                 return ret
             except TypeError as te:
-                # re-raise TypeErrors if they did not come from our arity testing
                 if found_arity:
                     raise
-                else:
-                    tb = te.__traceback__
-                    trim_arity_type_error = (
-                        extract_tb(tb, limit=2)[-1][:2] == pa_call_line_synth
-                    )
-                    del tb
+                tb = te.__traceback__
+                trim_arity_type_error = (
+                    extract_tb(tb, limit=2)[-1][:2] == pa_call_line_synth
+                )
+                del tb
 
-                    if trim_arity_type_error:
-                        if limit < max_limit:
-                            limit += 1
-                            continue
+                if trim_arity_type_error and limit < max_limit:
+                    limit += 1
+                    continue
 
-                    raise
+                raise
+
     # fmt: on
 
     # copy func name to wrapper for sensible debug output
@@ -352,17 +355,7 @@ def _default_start_debug_action(
 ):
     cache_hit_str = "*" if cache_hit else ""
     print(
-        (
-            "{}Match {} at loc {}({},{})\n  {}\n  {}^".format(
-                cache_hit_str,
-                expr,
-                loc,
-                lineno(loc, instring),
-                col(loc, instring),
-                line(loc, instring),
-                " " * (col(loc, instring) - 1),
-            )
-        )
+        f'{cache_hit_str}Match {expr} at loc {loc}({lineno(loc, instring)},{col(loc, instring)})\n  {line(loc, instring)}\n  {" " * (col(loc, instring) - 1)}^'
     )
 
 
@@ -375,7 +368,7 @@ def _default_success_debug_action(
     cache_hit: bool = False,
 ):
     cache_hit_str = "*" if cache_hit else ""
-    print("{}Matched {} -> {}".format(cache_hit_str, expr, toks.as_list()))
+    print(f"{cache_hit_str}Matched {expr} -> {toks.as_list()}")
 
 
 def _default_exception_debug_action(
@@ -387,9 +380,7 @@ def _default_exception_debug_action(
 ):
     cache_hit_str = "*" if cache_hit else ""
     print(
-        "{}Match {} failed, {} raised: {}".format(
-            cache_hit_str, expr, type(exc).__name__, exc
-        )
+        f"{cache_hit_str}Match {expr} failed, {type(exc).__name__} raised: {exc}"
     )
 
 
@@ -453,7 +444,7 @@ class ParserElement(ABC):
         debug_fail: typing.Optional[DebugExceptionAction]
 
     def __init__(self, savelist: bool = False):
-        self.parseAction: List[ParseAction] = list()
+        self.parseAction: List[ParseAction] = []
         self.failAction: typing.Optional[ParseFailAction] = None
         self.customName = None
         self._defaultName = None
@@ -465,7 +456,7 @@ class ParserElement(ABC):
         # used when checking for left-recursion
         self.mayReturnEmpty = False
         self.keepTabs = False
-        self.ignoreExprs: List["ParserElement"] = list()
+        self.ignoreExprs: List["ParserElement"] = []
         self.debug = False
         self.streamlined = False
         # optimize exception handling for subclasses that don't advance parse index
@@ -747,9 +738,9 @@ class ParserElement(ABC):
             exprsFound = False
             for e in self.ignoreExprs:
                 try:
+                    exprsFound = True
                     while 1:
                         loc, dummy = e._parse(instring, loc)
-                        exprsFound = True
                 except ParseException:
                     pass
         return loc
@@ -783,10 +774,12 @@ class ParserElement(ABC):
         if debugging or self.failAction:
             # print("Match {} at loc {}({}, {})".format(self, loc, lineno(loc, instring), col(loc, instring)))
             try:
-                if callPreParse and self.callPreparse:
-                    pre_loc = self.preParse(instring, loc)
-                else:
-                    pre_loc = loc
+                pre_loc = (
+                    self.preParse(instring, loc)
+                    if callPreParse and self.callPreparse
+                    else loc
+                )
+
                 tokens_start = pre_loc
                 if self.debugActions.debug_try:
                     self.debugActions.debug_try(instring, tokens_start, self, False)
@@ -807,10 +800,12 @@ class ParserElement(ABC):
                     self.failAction(instring, tokens_start, self, err)
                 raise
         else:
-            if callPreParse and self.callPreparse:
-                pre_loc = self.preParse(instring, loc)
-            else:
-                pre_loc = loc
+            pre_loc = (
+                self.preParse(instring, loc)
+                if callPreParse and self.callPreparse
+                else loc
+            )
+
             tokens_start = pre_loc
             if self.mayIndexError or pre_loc >= len_instring:
                 try:
@@ -866,12 +861,10 @@ class ParserElement(ABC):
                             and isinstance(tokens, (ParseResults, list)),
                             modal=self.modalResults,
                         )
-        if debugging:
-            # print("Matched", self, "->", ret_tokens.as_list())
-            if self.debugActions.debug_match:
-                self.debugActions.debug_match(
-                    instring, tokens_start, loc, self, ret_tokens, False
-                )
+        if debugging and self.debugActions.debug_match:
+            self.debugActions.debug_match(
+                instring, tokens_start, loc, self, ret_tokens, False
+            )
 
         return loc, ret_tokens
 
@@ -1026,7 +1019,7 @@ class ParserElement(ABC):
         elif cache_size_limit > 0:
             ParserElement.recursion_memos = _LRUMemo(capacity=cache_size_limit)
         else:
-            raise NotImplementedError("Memo size of %s" % cache_size_limit)
+            raise NotImplementedError(f"Memo size of {cache_size_limit}")
         ParserElement._left_recursion_enabled = True
 
     @staticmethod
@@ -1188,7 +1181,7 @@ class ParserElement(ABC):
             e.streamline()
 
         if not self.keepTabs:
-            instring = str(instring).expandtabs()
+            instring = instring.expandtabs()
         instrlen = len(instring)
         loc = 0
         preparseFn = self.preParse
@@ -1383,10 +1376,9 @@ class ParserElement(ABC):
             other = self._literalStringClass(other)
         if not isinstance(other, ParserElement):
             raise TypeError(
-                "Cannot combine element of type {} with ParserElement".format(
-                    type(other).__name__
-                )
+                f"Cannot combine element of type {type(other).__name__} with ParserElement"
             )
+
         return And([self, other])
 
     def __radd__(self, other) -> "ParserElement":
@@ -1400,10 +1392,9 @@ class ParserElement(ABC):
             other = self._literalStringClass(other)
         if not isinstance(other, ParserElement):
             raise TypeError(
-                "Cannot combine element of type {} with ParserElement".format(
-                    type(other).__name__
-                )
+                f"Cannot combine element of type {type(other).__name__} with ParserElement"
             )
+
         return other + self
 
     def __sub__(self, other) -> "ParserElement":
@@ -1414,10 +1405,9 @@ class ParserElement(ABC):
             other = self._literalStringClass(other)
         if not isinstance(other, ParserElement):
             raise TypeError(
-                "Cannot combine element of type {} with ParserElement".format(
-                    type(other).__name__
-                )
+                f"Cannot combine element of type {type(other).__name__} with ParserElement"
             )
+
         return self + And._ErrorStop() + other
 
     def __rsub__(self, other) -> "ParserElement":
@@ -1428,10 +1418,9 @@ class ParserElement(ABC):
             other = self._literalStringClass(other)
         if not isinstance(other, ParserElement):
             raise TypeError(
-                "Cannot combine element of type {} with ParserElement".format(
-                    type(other).__name__
-                )
+                f"Cannot combine element of type {type(other).__name__} with ParserElement"
             )
+
         return other - self
 
     def __mul__(self, other) -> "ParserElement":
@@ -1469,10 +1458,7 @@ class ParserElement(ABC):
             if isinstance(other[0], int) and other[1] is None:
                 if other[0] == 0:
                     return ZeroOrMore(self)
-                if other[0] == 1:
-                    return OneOrMore(self)
-                else:
-                    return self * other[0] + ZeroOrMore(self)
+                return OneOrMore(self) if other[0] == 1 else self * other[0] + ZeroOrMore(self)
             elif isinstance(other[0], int) and isinstance(other[1], int):
                 minElements, optElements = other
                 optElements -= minElements
@@ -1501,10 +1487,7 @@ class ParserElement(ABC):
         if optElements:
 
             def makeOptionalList(n):
-                if n > 1:
-                    return Opt(self + makeOptionalList(n - 1))
-                else:
-                    return Opt(self)
+                return Opt(self + makeOptionalList(n - 1)) if n > 1 else Opt(self)
 
             if minElements:
                 if minElements == 1:
@@ -1514,10 +1497,7 @@ class ParserElement(ABC):
             else:
                 ret = makeOptionalList(optElements)
         else:
-            if minElements == 1:
-                ret = self
-            else:
-                ret = And([self] * minElements)
+            ret = self if minElements == 1 else And([self] * minElements)
         return ret
 
     def __rmul__(self, other) -> "ParserElement":
@@ -1534,10 +1514,9 @@ class ParserElement(ABC):
             other = self._literalStringClass(other)
         if not isinstance(other, ParserElement):
             raise TypeError(
-                "Cannot combine element of type {} with ParserElement".format(
-                    type(other).__name__
-                )
+                f"Cannot combine element of type {type(other).__name__} with ParserElement"
             )
+
         return MatchFirst([self, other])
 
     def __ror__(self, other) -> "ParserElement":
@@ -1548,10 +1527,9 @@ class ParserElement(ABC):
             other = self._literalStringClass(other)
         if not isinstance(other, ParserElement):
             raise TypeError(
-                "Cannot combine element of type {} with ParserElement".format(
-                    type(other).__name__
-                )
+                f"Cannot combine element of type {type(other).__name__} with ParserElement"
             )
+
         return other | self
 
     def __xor__(self, other) -> "ParserElement":
@@ -1562,10 +1540,9 @@ class ParserElement(ABC):
             other = self._literalStringClass(other)
         if not isinstance(other, ParserElement):
             raise TypeError(
-                "Cannot combine element of type {} with ParserElement".format(
-                    type(other).__name__
-                )
+                f"Cannot combine element of type {type(other).__name__} with ParserElement"
             )
+
         return Or([self, other])
 
     def __rxor__(self, other) -> "ParserElement":
@@ -1576,10 +1553,9 @@ class ParserElement(ABC):
             other = self._literalStringClass(other)
         if not isinstance(other, ParserElement):
             raise TypeError(
-                "Cannot combine element of type {} with ParserElement".format(
-                    type(other).__name__
-                )
+                f"Cannot combine element of type {type(other).__name__} with ParserElement"
             )
+
         return other ^ self
 
     def __and__(self, other) -> "ParserElement":
@@ -1590,10 +1566,9 @@ class ParserElement(ABC):
             other = self._literalStringClass(other)
         if not isinstance(other, ParserElement):
             raise TypeError(
-                "Cannot combine element of type {} with ParserElement".format(
-                    type(other).__name__
-                )
+                f"Cannot combine element of type {type(other).__name__} with ParserElement"
             )
+
         return Each([self, other])
 
     def __rand__(self, other) -> "ParserElement":
@@ -1604,10 +1579,9 @@ class ParserElement(ABC):
             other = self._literalStringClass(other)
         if not isinstance(other, ParserElement):
             raise TypeError(
-                "Cannot combine element of type {} with ParserElement".format(
-                    type(other).__name__
-                )
+                f"Cannot combine element of type {type(other).__name__} with ParserElement"
             )
+
         return other & self
 
     def __invert__(self) -> "ParserElement":
@@ -1651,14 +1625,11 @@ class ParserElement(ABC):
 
         if len(key) > 2:
             raise TypeError(
-                "only 1 or 2 index arguments supported ({}{})".format(
-                    key[:5], "... [{}]".format(len(key)) if len(key) > 5 else ""
-                )
+                f'only 1 or 2 index arguments supported ({key[:5]}{f"... [{len(key)}]" if len(key) > 5 else ""})'
             )
 
-        # clip to 2 elements
-        ret = self * tuple(key[:2])
-        return ret
+
+        return self * tuple(key[:2])
 
     def __call__(self, name: str = None) -> "ParserElement":
         """
@@ -1675,10 +1646,7 @@ class ParserElement(ABC):
             userdata = Word(alphas).set_results_name("name") + Word(nums + "-").set_results_name("socsecno")
             userdata = Word(alphas)("name") + Word(nums + "-")("socsecno")
         """
-        if name is not None:
-            return self._setResultsName(name)
-        else:
-            return self.copy()
+        return self._setResultsName(name) if name is not None else self.copy()
 
     def suppress(self) -> "ParserElement":
         """
@@ -1849,7 +1817,7 @@ class ParserElement(ABC):
             Word(nums).set_name("integer").parse_string("ABC")  # -> Exception: Expected integer (at char 0), (line:1, col:1)
         """
         self.customName = name
-        self.errmsg = "Expected " + self.name
+        self.errmsg = f"Expected {self.name}"
         if __diag__.enable_debug_on_named_expressions:
             self.set_debug()
         return self
@@ -1942,7 +1910,7 @@ class ParserElement(ABC):
         """
         parseAll = parseAll and parse_all
         try:
-            self.parse_string(str(test_string), parse_all=parseAll)
+            self.parse_string(test_string, parse_all=parseAll)
             return True
         except ParseBaseException:
             return False
@@ -2101,13 +2069,13 @@ class ParserElement(ABC):
             except ParseBaseException as pe:
                 fatal = "(FATAL)" if isinstance(pe, ParseFatalException) else ""
                 out.append(pe.explain())
-                out.append("FAIL: " + str(pe))
+                out.append(f"FAIL: {str(pe)}")
                 if ParserElement.verbose_stacktrace:
                     out.extend(traceback.format_tb(pe.__traceback__))
                 success = success and failureTests
                 result = pe
             except Exception as exc:
-                out.append("FAIL-EXCEPTION: {}: {}".format(type(exc).__name__, exc))
+                out.append(f"FAIL-EXCEPTION: {type(exc).__name__}: {exc}")
                 if ParserElement.verbose_stacktrace:
                     out.extend(traceback.format_tb(exc.__traceback__))
                 success = success and failureTests
@@ -2117,20 +2085,15 @@ class ParserElement(ABC):
                 if postParse is not None:
                     try:
                         pp_value = postParse(t, result)
-                        if pp_value is not None:
-                            if isinstance(pp_value, ParseResults):
-                                out.append(pp_value.dump())
-                            else:
-                                out.append(str(pp_value))
-                        else:
+                        if pp_value is None:
                             out.append(result.dump())
+                        elif isinstance(pp_value, ParseResults):
+                            out.append(pp_value.dump())
+                        else:
+                            out.append(str(pp_value))
                     except Exception as e:
                         out.append(result.dump(full=fullDump))
-                        out.append(
-                            "{} failed: {}: {}".format(
-                                postParse.__name__, type(e).__name__, e
-                            )
-                        )
+                        out.append(f"{postParse.__name__} failed: {type(e).__name__}: {e}")
                 else:
                     out.append(result.dump(full=fullDump))
             out.append("")
@@ -2240,7 +2203,7 @@ class _PendingSkip(ParserElement):
             def show_skip(t):
                 if t._skipped.as_list()[-1:] == [""]:
                     t.pop("_skipped")
-                    t["_skipped"] = "missing <" + repr(self.anchor) + ">"
+                    t["_skipped"] = f"missing <{repr(self.anchor)}>"
 
             return (
                 self.anchor + skipper().add_parse_action(must_skip)
@@ -2321,7 +2284,7 @@ class Literal(Token):
             self.firstMatchChar = match_string[0]
         except IndexError:
             raise ValueError("null string passed to Literal; use Empty() instead")
-        self.errmsg = "Expected " + self.name
+        self.errmsg = f"Expected {self.name}"
         self.mayReturnEmpty = False
         self.mayIndexError = False
 
@@ -2400,7 +2363,7 @@ class Keyword(Token):
             self.firstMatchChar = match_string[0]
         except IndexError:
             raise ValueError("null string passed to Keyword; use Empty() instead")
-        self.errmsg = "Expected {} {}".format(type(self).__name__, self.name)
+        self.errmsg = f"Expected {type(self).__name__} {self.name}"
         self.mayReturnEmpty = False
         self.mayIndexError = False
         self.caseless = caseless
@@ -2423,40 +2386,35 @@ class Keyword(Token):
                         or instring[loc + self.matchLen].upper() not in self.identChars
                     ):
                         return loc + self.matchLen, self.match
-                    else:
-                        # followed by keyword char
-                        errmsg += ", was immediately followed by keyword character"
-                        errloc = loc + self.matchLen
+                    # followed by keyword char
+                    errmsg += ", was immediately followed by keyword character"
+                    errloc = loc + self.matchLen
                 else:
                     # preceded by keyword char
                     errmsg += ", keyword was immediately preceded by keyword character"
                     errloc = loc - 1
-            # else no match just raise plain exception
+                # else no match just raise plain exception
 
-        else:
-            if (
+        elif (
                 instring[loc] == self.firstMatchChar
                 and self.matchLen == 1
                 or instring.startswith(self.match, loc)
             ):
-                if loc == 0 or instring[loc - 1] not in self.identChars:
-                    if (
+            if loc == 0 or instring[loc - 1] not in self.identChars:
+                if (
                         loc >= len(instring) - self.matchLen
                         or instring[loc + self.matchLen] not in self.identChars
                     ):
-                        return loc + self.matchLen, self.match
-                    else:
-                        # followed by keyword char
-                        errmsg += (
-                            ", keyword was immediately followed by keyword character"
-                        )
-                        errloc = loc + self.matchLen
-                else:
-                    # preceded by keyword char
-                    errmsg += ", keyword was immediately preceded by keyword character"
-                    errloc = loc - 1
-            # else no match just raise plain exception
-
+                    return loc + self.matchLen, self.match
+                # followed by keyword char
+                errmsg += (
+                    ", keyword was immediately followed by keyword character"
+                )
+                errloc = loc + self.matchLen
+            else:
+                # preceded by keyword char
+                errmsg += ", keyword was immediately preceded by keyword character"
+                errloc = loc - 1
         raise ParseException(instring, errloc, errmsg, self)
 
     @staticmethod
@@ -2488,7 +2446,7 @@ class CaselessLiteral(Literal):
         super().__init__(match_string.upper())
         # Preserve the defining literal.
         self.returnString = match_string
-        self.errmsg = "Expected " + self.name
+        self.errmsg = f"Expected {self.name}"
 
     def parseImpl(self, instring, loc, doActions=True):
         if instring[loc : loc + self.matchLen].upper() == self.match:

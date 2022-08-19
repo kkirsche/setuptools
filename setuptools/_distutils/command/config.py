@@ -102,7 +102,7 @@ class config(Command):
                 self.compiler.set_library_dirs(self.library_dirs)
 
     def _gen_temp_sourcefile(self, body, headers, lang):
-        filename = "_configtest" + LANG_EXT[lang]
+        filename = f"_configtest{LANG_EXT[lang]}"
         with open(filename, "w") as file:
             if headers:
                 for header in headers:
@@ -315,12 +315,12 @@ class config(Command):
         self._check_compiler()
         body = []
         if decl:
-            body.append("int %s ();" % func)
+            body.append(f"int {func} ();")
         body.append("int main () {")
         if call:
-            body.append("  %s();" % func)
+            body.append(f"  {func}();")
         else:
-            body.append("  %s;" % func)
+            body.append(f"  {func};")
         body.append("}")
         body = "\n".join(body) + "\n"
 

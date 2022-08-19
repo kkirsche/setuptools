@@ -62,9 +62,7 @@ def _parse_ld_musl_from_elf(f: IO[bytes]) -> Optional[str]:
             continue
         f.seek(p_offset)
         interpreter = os.fsdecode(f.read(p_filesz)).strip("\0")
-        if "musl" not in interpreter:
-            return None
-        return interpreter
+        return None if "musl" not in interpreter else interpreter
     return None
 
 
@@ -78,9 +76,7 @@ def _parse_musl_version(output: str) -> Optional[_MuslVersion]:
     if len(lines) < 2 or lines[0][:4] != "musl":
         return None
     m = re.match(r"Version (\d+)\.(\d+)", lines[1])
-    if not m:
-        return None
-    return _MuslVersion(major=int(m.group(1)), minor=int(m.group(2)))
+    return _MuslVersion(major=int(m[1]), minor=int(m[2])) if m else None
 
 
 @functools.lru_cache()

@@ -136,10 +136,7 @@ class _IndividualSpecifier(BaseSpecifier):
         return self._canonical_spec == other._canonical_spec
 
     def _get_operator(self, op: str) -> CallableOperator:
-        operator_callable: CallableOperator = getattr(
-            self, f"_compare_{self._operators[op]}"
-        )
-        return operator_callable
+        return getattr(self, f"_compare_{self._operators[op]}")
 
     def _coerce_version(self, version: UnparsedVersion) -> ParsedVersion:
         if not isinstance(version, (LegacyVersion, Version)):
@@ -220,8 +217,7 @@ class _IndividualSpecifier(BaseSpecifier):
         # any values, and if we have not and we have any prereleases stored up
         # then we will go ahead and yield the prereleases.
         if not yielded and found_prereleases:
-            for version in found_prereleases:
-                yield version
+            yield from found_prereleases
 
 
 class LegacySpecifier(_IndividualSpecifier):
@@ -289,9 +285,11 @@ def _require_version_compare(
 ) -> Callable[["Specifier", ParsedVersion, str], bool]:
     @functools.wraps(fn)
     def wrapped(self: "Specifier", prospective: ParsedVersion, spec: str) -> bool:
-        if not isinstance(prospective, Version):
-            return False
-        return fn(self, prospective, spec)
+        return (
+            fn(self, prospective, spec)
+            if isinstance(prospective, Version)
+            else False
+        )
 
     return wrapped
 
@@ -498,21 +496,15 @@ class Specifier(_IndividualSpecifier):
         # Check to see if the prospective version is less than the spec
         # version. If it's not we can short circuit and just return False now
         # instead of doing extra unneeded work.
-        if not prospective < spec:
-            return False
-
-        # This special case is here so that, unless the specifier itself
-        # includes is a pre-release version, that we do not accept pre-release
-        # versions for the version mentioned in the specifier (e.g. <3.1 should
-        # not match 3.1.dev0, but should match 3.0.dev0).
-        if not spec.is_prerelease and prospective.is_prerelease:
-            if Version(prospective.base_version) == Version(spec.base_version):
-                return False
-
-        # If we've gotten to here, it means that prospective version is both
-        # less than the spec version *and* it's not a pre-release of the same
-        # version in the spec.
-        return True
+        return (
+            bool(
+                spec.is_prerelease
+                or not prospective.is_prerelease
+                or Version(prospective.base_version) != Version(spec.base_version)
+            )
+            if prospective < spec
+            else False
+        )
 
     @_require_version_compare
     def _compare_greater_than(self, prospective: ParsedVersion, spec_str: str) -> bool:
@@ -531,23 +523,21 @@ class Specifier(_IndividualSpecifier):
         # includes is a post-release version, that we do not accept
         # post-release versions for the version mentioned in the specifier
         # (e.g. >3.1 should not match 3.0.post0, but should match 3.2.post0).
-        if not spec.is_postrelease and prospective.is_postrelease:
-            if Version(prospective.base_version) == Version(spec.base_version):
-                return False
+        if (
+            not spec.is_postrelease
+            and prospective.is_postrelease
+            and Version(prospective.base_version) == Version(spec.base_version)
+        ):
+            return False
 
         # Ensure that we do not allow a local version of the version mentioned
         # in the specifier, which is technically greater than, to match.
-        if prospective.local is not None:
-            if Version(prospective.base_version) == Version(spec.base_version):
-                return False
-
-        # If we've gotten to here, it means that prospective version is both
-        # greater than the spec version *and* it's not a pre-release of the
-        # same version in the spec.
-        return True
+        return prospective.local is None or Version(
+            prospective.base_version
+        ) != Version(spec.base_version)
 
     def _compare_arbitrary(self, prospective: Version, spec: str) -> bool:
-        return str(prospective).lower() == str(spec).lower()
+        return str(prospective).lower() == spec.lower()
 
     @property
     def prereleases(self) -> bool:
@@ -585,8 +575,7 @@ _prefix_regex = re.compile(r"^([0-9]+)((?:a|b|c|rc)[0-9]+)$")
 def _version_split(version: str) -> List[str]:
     result: List[str] = []
     for item in version.split("."):
-        match = _prefix_regex.search(item)
-        if match:
+        if match := _prefix_regex.search(item):
             result.extend(match.groups())
         else:
             result.append(item)
@@ -705,12 +694,7 @@ class SpecifierSet(BaseSpecifier):
         # If we don't have any specifiers, and we don't have a forced value,
         # then we'll just return None since we don't know if this should have
         # pre-releases or not.
-        if not self._specs:
-            return None
-
-        # Otherwise we'll see if any of the given specifiers accept
-        # prereleases, if any of them do we'll return True, otherwise False.
-        return any(s.prereleases for s in self._specs)
+        return any(s.prereleases for s in self._specs) if self._specs else None
 
     @prereleases.setter
     def prereleases(self, value: bool) -> None:
@@ -765,9 +749,6 @@ class SpecifierSet(BaseSpecifier):
             for spec in self._specs:
                 iterable = spec.filter(iterable, prereleases=bool(prereleases))
             return iterable
-        # If we do not have any specifiers, then we need to have a rough filter
-        # which will filter out any pre-releases, unless there are no final
-        # releases, and which will filter out LegacyVersion in general.
         else:
             filtered: List[VersionTypeVar] = []
             found_prereleases: List[VersionTypeVar] = []
@@ -777,10 +758,11 @@ class SpecifierSet(BaseSpecifier):
 
             for item in iterable:
                 # Ensure that we some kind of Version class for this item.
-                if not isinstance(item, (LegacyVersion, Version)):
-                    parsed_version = parse(item)
-                else:
-                    parsed_version = item
+                parsed_version = (
+                    item
+                    if isinstance(item, (LegacyVersion, Version))
+                    else parse(item)
+                )
 
                 # Filter out any item which is parsed as a LegacyVersion
                 if isinstance(parsed_version, LegacyVersion):
